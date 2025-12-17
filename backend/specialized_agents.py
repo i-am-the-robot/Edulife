@@ -159,6 +159,12 @@ class TutoringAgent(BaseAgent):
             intent["is_simple_question"] = True
             return intent
         
+        # Check for visual requests
+        visual_keywords = ["show me", "picture", "image", "graph", "diagram", "draw", "see", "look"]
+        if any(word in msg_lower for word in visual_keywords):
+            intent["type"] = "visual_request"
+            return intent
+
         # Default to learning question
         intent["type"] = "learning"
         return intent
@@ -176,17 +182,8 @@ class TutoringAgent(BaseAgent):
             return "We were learning about your recent topics. Want to continue?"
         
         if intent["type"] == "greeting":
-            # Only greet if this is first greeting or randomly occasionally
-            if self.greeting_count <= 1:
-                return self._get_dynamic_greeting()
-            else:
-                # Stop greeting loop - move conversation forward
-                variations = [
-                    "What would you like to work on?",
-                    "I'm listening - what's on your mind?",
-                    "Ready to move on to a topic?"
-                ]
-                return random.choice(variations)
+            # Always reply nicely to greetings - be human!
+            return self._get_dynamic_greeting()
         
         if intent["type"] == "tired":
             return "Sounds good! Rest well and come back when you're ready. See you next time! 😊"
@@ -200,6 +197,10 @@ class TutoringAgent(BaseAgent):
                 return "I'm your EduLife tutor! What would you like to learn today?"
             elif "with me" in msg_lower or "there" in msg_lower:
                 return "Yes, I'm here! What's up?"
+
+        if intent["type"] == "visual_request":
+            # Fall through to generation, but the system prompt will handle the tag logic
+            return None
         
         return None
 
@@ -406,10 +407,10 @@ When student asks for a picture/image/diagram:
 2. Add a short comment: "Here you go!"
 3. Example: [SHOW_IMAGE: diagram of photosynthesis process with sun and leaves]
 
-## ANTI-REPETITION RULES
-- If you have already greeted the student recently, DO NOT greet them again.
-- DO NOT say "Welcome back" unless they heavily implied they were gone.
-- If context says [CONTINUOUS CONVERSATION], just answer the question directly. No fluff.
+## CONVERSATIONAL STYLE
+- Be natural and friendly.
+- If the student says "hy" or greets you, greet them back warmly!
+- Don't be robotic. Flow with the conversation.
 
 
 ## CONTEXT FLAGS
