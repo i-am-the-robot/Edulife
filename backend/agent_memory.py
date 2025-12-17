@@ -35,8 +35,10 @@ class StudentAgentMemory:
                 mastered_topics=json.dumps([]),
                 current_focus_topics=json.dumps([]),
                 agent_goals=json.dumps([]),
+                agent_goals=json.dumps([]),
                 progress_milestones=json.dumps([]),
-                preferred_examples=json.dumps([])
+                preferred_examples=json.dumps([]),
+                user_facts=json.dumps([])
             )
             self.session.add(memory)
             self.session.commit()
@@ -167,7 +169,32 @@ class StudentAgentMemory:
         self.memory.progress_milestones = json.dumps(milestones)
         self.memory.updated_at = datetime.now(timezone.utc)
         self.session.add(self.memory)
+        self.session.add(self.memory)
         self.session.commit()
+        
+    def add_fact(self, category: str, fact: str):
+        """Add a permanent fact about the user"""
+        facts = json.loads(self.memory.user_facts or "[]")
+        
+        # Check duplicates
+        for f in facts:
+            if f["fact"] == fact:
+                return
+                
+        facts.append({
+            "category": category, # e.g., 'hobby', 'pet', 'goal'
+            "fact": fact,
+            "added_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        self.memory.user_facts = json.dumps(facts)
+        self.memory.updated_at = datetime.now(timezone.utc)
+        self.session.add(self.memory)
+        self.session.commit()
+        
+    def get_all_facts(self) -> List[Dict]:
+        """Get all stored user facts"""
+        return json.loads(self.memory.user_facts or "[]")
     
     def get_effective_strategies(self) -> List[Dict]:
         """Get list of effective strategies"""
@@ -197,6 +224,7 @@ class StudentAgentMemory:
             "topics_to_revisit_count": len(self.get_topics_to_revisit()),
             "mastered_topics_count": len(self.get_mastered_topics()),
             "active_goals_count": len(self.get_active_goals()),
+            "user_facts_count": len(self.get_all_facts()),
             "optimal_session_length": self.memory.optimal_session_length,
             "best_time_of_day": self.memory.best_time_of_day
         }

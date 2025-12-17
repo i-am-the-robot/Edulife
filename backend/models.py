@@ -369,6 +369,7 @@ class AgentMemory(SQLModel, table=True):
     
     # Personalization
     preferred_examples: Optional[str] = None  # Types of examples student responds to
+    user_facts: Optional[str] = None  # JSON array of extracted user facts (hobbies, pets, etc)
     optimal_session_length: Optional[int] = None  # Minutes
     best_time_of_day: Optional[str] = None  # 'morning', 'afternoon', 'evening'
     

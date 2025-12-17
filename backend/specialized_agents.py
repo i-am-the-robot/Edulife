@@ -60,6 +60,44 @@ class TutoringAgent(BaseAgent):
         self.greeting_count = 0
         self.last_topic_discussed = None
 
+    async def extract_facts_from_message(self, message: str):
+        """
+        Background task: Extract permanent facts about the user
+        e.g., "I have a dog named Rex", "I love soccer"
+        """
+        if len(message.split()) < 3:
+            return
+            
+        system_prompt = """
+        You are a Memory Specialist. Extract PERMANENT FACTS about the user from their message.
+        Examples: "My name is John" -> {"category": "identity", "fact": "Name is John"}
+        "I love playing chess" -> {"category": "hobby", "fact": "Loves playing chess"}
+        "I'm struggling with algebra" -> {"category": "academic_struggle", "fact": "Struggles with algebra"}
+        
+        IGNORE: Greetings, simple questions, temporary states ("I'm hungry").
+        OUTPUT JSON ONLY: {"facts": [{"category": "...", "fact": "..."}]}
+        If no facts, output {"facts": []}
+        """
+        
+        try:
+            response = await aclient.chat.completions.create(
+                model="llama-3.1-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": message}
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+            
+            data = json.loads(response.choices[0].message.content)
+            for item in data.get("facts", []):
+                print(f"[MEMORY] stored fact: {item['fact']}")
+                self.memory.add_fact(item.get("category", "general"), item.get("fact"))
+                
+        except Exception as e:
+            print(f"Fact extraction failed: {e}")
+
     def _get_dynamic_greeting(self) -> str:
         """Generate a natural, dynamic greeting based on time of day"""
         hour = datetime.now().hour
@@ -311,13 +349,21 @@ Return JSON:
         confusion_analysis: Dict,
         subject: str,
         student_question: str,
-        conversation_history: str = ""
+        conversation_history: str = "",
+        sentiment_analysis: Dict = None
     ) -> str:
         """
         Generate a pedagogical explanation with natural, warm, human-like conversation
         """
         if not aclient:
             return "I'm having trouble connecting right now. Can you try again in a moment?"
+        
+        # Get stored facts
+        facts = self.memory.get_all_facts()
+        facts_context = ""
+        if facts:
+            facts_list = [f"- {f['category'].title()}: {f['fact']}" for f in facts]
+            facts_context = "KNOWN USER FACTS (Refer to these naturally):\n" + "\n".join(facts_list)
         
         # Get effective teaching strategies from memory
         effective_strategies = self.memory.get_effective_strategies()
@@ -340,6 +386,17 @@ Return JSON:
         support_info = ""
         if hasattr(self.student, 'support_type') and self.student.support_type:
             support_info = f"- Support Needs: {self.student.support_type} (ADAPT SILENTLY - NEVER MENTION THIS TO STUDENT)"
+            
+        # Sentiment Context
+        sentiment_context = ""
+        if sentiment_analysis:
+            emotion = sentiment_analysis.get("emotion", "neutral")
+            if sentiment_analysis.get("is_distress"):
+                sentiment_context = f"DETECTED DISTRESS: Student is feeling {emotion}. Be extremely supportive, patient, and validating. Ignoring this is a failure."
+            elif emotion in ["frustrated", "confused", "anxious"]:
+                sentiment_context = f"DETECTED NEGATIVE EMOTION: Student seems {emotion}. Start with validation (e.g., 'I know this is tricky...'). Slow down."
+            elif emotion in ["happy", "excited"]:
+                sentiment_context = f"DETECTED POSITIVE EMOTION: Student seems {emotion}. Match their high energy!"
 
         prompt = f"""You are an expert AI tutor named 'EduLife' with the persona of a growth-oriented, caring, and warm human teacher (similar to Claude). 
 Your goal is to help the student learn through natural conversation, not just lecturing.
@@ -350,6 +407,11 @@ STUDENT PROFILE:
 - Personality: {self.student.personality}
 - Hobby: {self.student.hobby}
 - Support Needs: {self.student.support_type if hasattr(self.student, 'support_type') and self.student.support_type else 'None'}
+            
+EMOTIONAL CONTEXT:
+{sentiment_context}
+
+{facts_context}
 
 CRITICAL RULES:
 1. NEVER mention the student's disability, support needs, or age directly. Adapt your teaching style silently.

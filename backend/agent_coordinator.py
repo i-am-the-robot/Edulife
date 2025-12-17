@@ -151,15 +151,33 @@ class AgentCoordinator:
 
         # DEFINING ALL TASKS
         
-        # 1. Analysis Tasks (Background)
-        # 1. Analysis Tasks (Background)
-        # Wrap in create_task so they can be awaited multiple times safely
-        task_sentiment = asyncio.create_task(self.motivation_agent.analyze_sentiment(question))
-        task_confusion = asyncio.create_task(self.tutoring_agent.analyze_confusion(question, subject, conversation_context))
+        # 1. CORE INSIGHTS (Blocking for quality)
+        # We need to know HOW the student feels and WHAT they don't get *before* we speak.
+        print(f"[COORDINATOR] Phase 1: Gathering Insights (Sentiment & Confusion)...")
         
-        # 2. Main Tutor Response (Critical Path - No dependency on Analysis to start)
-        # We pass None for confusion_analysis so it self-analyzes or uses defaults to save time
-        task_explanation = self.tutoring_agent.generate_explanation({}, subject, question, conversation_context)
+        # Run analysis in parallel
+        analysis_results = await asyncio.gather(
+            self.motivation_agent.analyze_sentiment(question),
+            self.tutoring_agent.analyze_confusion(question, subject, conversation_context),
+            self.tutoring_agent.extract_facts_from_message(question) # NEW: Active Listening/Fact Extraction in background
+        )
+        sentiment_res, confusion_res, _ = analysis_results # We don't need the result of extraction, it saves to DB internally
+        
+        # 2. Main Tutor Response (Now Insight-Driven)
+        # We pass the full insight objects so the tutor can adapt its tone and content
+        print(f"[COORDINATOR] Phase 2: Generating Guided Response...")
+        
+        # Add tasks for logging purposes (to keep structure consistent with later code)
+        task_sentiment = asyncio.create_task(asyncio.sleep(0, result=sentiment_res)) 
+        task_confusion = asyncio.create_task(asyncio.sleep(0, result=confusion_res))
+
+        task_explanation = self.tutoring_agent.generate_explanation(
+            confusion_res,  # Pass actual analysis
+            subject, 
+            question, 
+            conversation_context,
+            sentiment_analysis=sentiment_res # New argument
+        )
         
         # 3. Auxiliary Tasks
         # These need to wait for analysis results, so we wrap them
@@ -402,6 +420,7 @@ class AgentCoordinator:
             # 1. Start Analysis Tasks (Background)
             task_sentiment = asyncio.create_task(self.motivation_agent.analyze_sentiment(question))
             task_confusion = asyncio.create_task(self.tutoring_agent.analyze_confusion(question, subject, conversation_context))
+            task_active_listening = asyncio.create_task(self.tutoring_agent.extract_facts_from_message(question)) # NEW: Active listening
         
             # 2. Main Tutor Response (Blocking but yielded first)
             # We await this first so we can send audio ASAP
