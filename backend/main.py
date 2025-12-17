@@ -22,6 +22,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+import os
+
 # CORS configuration
 origins = [
     "http://localhost:5173",
@@ -31,6 +33,11 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# Add Render/Production origins from Environment Variable
+env_origins = os.getenv("ALLOWED_ORIGINS")
+if env_origins:
+    origins.extend(env_origins.split(","))
 
 app.add_middleware(
     CORSMiddleware,
