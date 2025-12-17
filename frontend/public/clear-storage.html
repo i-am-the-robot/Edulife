@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Clear Browser Storage</title>
+</head>
+
+<body>
+    <h1>Clear Browser Storage and Login Again</h1>
+    <button onclick="clearStorage()">Clear Storage & Reload</button>
+
+    <script>
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            alert('Storage cleared! Page will reload. Login again as admin.');
+            window.location.href = 'http://localhost:5174/login';
+        }
+
+        // Auto-clear on load
+        if (window.location.search.includes('auto=1')) {
+            clearStorage();
+        }
+    </script>
+
+    <p>Click the button above to clear all stored tokens and login data.</p>
+    <p>Then login again with:</p>
+    <ul>
+        <li>Email: titilolasalisukazeem1@gmail.com</li>
+        <li>Password: Project2025</li>
+    </ul>
+</body>
+
+</html>
