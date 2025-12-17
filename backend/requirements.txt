@@ -14,3 +14,4 @@ dotenv
 wikipedia
 duckduckgo_search
 psycopg2-binary
+twilio
