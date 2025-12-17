@@ -705,6 +705,7 @@ async def voice_chat(
     """
     from fastapi.responses import StreamingResponse
     from .agent_coordinator import AgentCoordinator
+    from .database import engine 
     import uuid
     import json
     
@@ -719,20 +720,36 @@ async def voice_chat(
     elif any(word in message_lower for word in ["science", "biology", "physics"]): subject = "Science"
     elif any(word in message_lower for word in ["read", "write", "book"]): subject = "English"
 
-    # Initialize Coordinator
-    coordinator = AgentCoordinator(current_student, session)
+    # Capture ID to use in new session
+    student_id = current_student.id
     
     async def response_generator():
-        # A. Yield Session Info immediately
-        yield json.dumps({
-            "type": "session_info", 
-            "session_id": session_id,
-            "subject": subject
-        }) + "\n"
-        
-        # B. Delegate to Agent Coordinator Steam
-        async for chunk in coordinator.handle_student_question_stream(text, subject):
-            yield chunk
+        # Create NEW session for the long-running stream
+        # This prevents "Instance not bound to Session" errors when the request session closes
+        with Session(engine) as stream_session:
+            try:
+                # Re-fetch student in this session
+                active_student = stream_session.get(Student, student_id)
+                if not active_student:
+                    yield json.dumps({"type": "response", "content": "Error: Student not found"}) + "\n"
+                    return
+                
+                # Yield Session Info immediately
+                yield json.dumps({
+                    "type": "session_info", 
+                    "session_id": session_id,
+                    "subject": subject
+                }) + "\n"
+                
+                # Initialize Coordinator with NEW session
+                coordinator = AgentCoordinator(active_student, stream_session)
+            
+                # Delegate to Agent Coordinator Steam
+                async for chunk in coordinator.handle_student_question_stream(text, subject):
+                    yield chunk
+            except Exception as e:
+                print(f"Stream Error: {e}")
+                yield json.dumps({"type": "response", "content": "Connection error during stream."}) + "\n"
 
     return StreamingResponse(response_generator(), media_type="application/x-ndjson")
 
