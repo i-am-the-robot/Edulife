@@ -2,7 +2,7 @@ import requests
 import json
 
 # Backend URL
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "https://edulife.onrender.com"
 
 def create_admin():
     """Create admin account"""

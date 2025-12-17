@@ -36,7 +36,7 @@ const IndependentLogin = () => {
                 school_id: null
             };
 
-            const response = await axios.post('http://localhost:8000/api/auth/student/register', payload);
+            const response = await axios.post('https://edulife.onrender.com/api/auth/student/register', payload);
             setCredentials(response.data);
             setStep(2);
         } catch (err) {

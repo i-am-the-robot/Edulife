@@ -18,7 +18,7 @@ const AgentDashboard = ({ studentId }) => {
 
             // Get agent memory
             const memoryRes = await axios.get(
-                'http://localhost:8000/api/agent/memory/me',
+                'https://edulife.onrender.com/api/agent/memory/me',
                 { headers }
             );
 
