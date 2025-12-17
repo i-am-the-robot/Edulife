@@ -5,7 +5,7 @@ import requests
 
 # Test admin login
 response = requests.post(
-    "http://127.0.0.1:8000/api/auth/admin/login",
+    "https://edulife.onrender.com/api/auth/admin/login",
     params={
         "email": "titilolasalisukazeem1@gmail.com",
         "password": "Project2025"
@@ -29,7 +29,7 @@ if response.status_code == 200:
     # Test accessing admin endpoint
     headers = {"Authorization": f"Bearer {token}"}
     test_response = requests.get(
-        "http://127.0.0.1:8000/api/admin/schools",
+        "https://edulife.onrender.com/api/admin/schools",
         headers=headers
     )
     print(f"\nTest admin endpoint: {test_response.status_code}")

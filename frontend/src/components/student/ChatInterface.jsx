@@ -65,7 +65,7 @@ export default function ChatInterface({ initialSessionId = null, taskData = null
             const token = sessionStorage.getItem('token'); // Get auth token directly
 
             // Use fetch for streaming support (axios doesn't support streaming well in browser)
-            const response = await fetch(`http://127.0.0.1:8000/api/student/chat/voice?text=${encodeURIComponent(transcript)}${currentSessionId ? `&session_id=${currentSessionId}` : ''}`, {
+            const response = await fetch(`https://edulife.onrender.com/api/student/chat/voice?text=${encodeURIComponent(transcript)}${currentSessionId ? `&session_id=${currentSessionId}` : ''}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

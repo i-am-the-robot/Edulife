@@ -5,7 +5,7 @@ import requests
 import json
 from datetime import datetime
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "https://edulife.onrender.com"
 
 print("="*60)
 print("  EduLife v2.0 Backend Test")

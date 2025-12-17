@@ -20,7 +20,7 @@ python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ### Step 3: Verify Server is Running
 You should see:
 ```
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Uvicorn running on https://edulife.onrender.com (Press CTRL+C to quit)
 INFO:     Started reloader process
 INFO:     Started server process
 INFO:     Waiting for application startup.
@@ -28,7 +28,7 @@ INFO:     Application startup complete.
 ```
 
 ### Step 4: Test the API
-Open browser and go to: `http://127.0.0.1:8000/health`
+Open browser and go to: `https://edulife.onrender.com/health`
 
 You should see:
 ```json
@@ -69,7 +69,7 @@ The database is now empty, so you need to:
 ## Troubleshooting
 
 ### If CORS errors persist:
-- Make sure backend is running on `http://127.0.0.1:8000`
+- Make sure backend is running on `https://edulife.onrender.com`
 - Make sure frontend is running on `http://localhost:5173`
 - Check browser console for exact error
 

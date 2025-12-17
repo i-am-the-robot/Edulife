@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-BASE_URL = "http://127.0.0.1:8000/api"
+BASE_URL = "https://edulife.onrender.com/api"
 
 def login_student(student_id, pin):
     # Student login endpoint expects query param for pin (or JSON body depending on implementation, 

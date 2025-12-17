@@ -29,7 +29,7 @@ def create_admin():
             return None
     except requests.exceptions.ConnectionError:
         print("ERROR: Cannot connect to backend server")
-        print("Please make sure the backend is running on http://127.0.0.1:8000")
+        print("Please make sure the backend is running on https://edulife.onrender.com")
         return None
     except Exception as e:
         print(f"ERROR: {e}")

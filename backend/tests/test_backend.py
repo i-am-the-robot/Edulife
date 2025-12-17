@@ -12,7 +12,7 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "https://edulife.onrender.com"
 
 # Store tokens and IDs
 admin_token = None

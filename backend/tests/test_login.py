@@ -1,7 +1,7 @@
 import requests
 
 # Backend URL
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "https://edulife.onrender.com"
 
 def test_admin_login():
     """Test admin login with form data"""

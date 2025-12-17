@@ -64,8 +64,8 @@ python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 4. **Access API Documentation:**
-- Swagger UI: http://127.0.0.1:8000/docs
-- ReDoc: http://127.0.0.1:8000/redoc
+- Swagger UI: https://edulife.onrender.com/docs
+- ReDoc: https://edulife.onrender.com/redoc
 
 ### Current Status
 ✅ Database models created

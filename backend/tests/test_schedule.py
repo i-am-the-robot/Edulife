@@ -5,7 +5,7 @@ import requests
 import json
 
 # Test the schedule generation endpoint
-url = "http://127.0.0.1:8000/api/student/generate-schedule"
+url = "https://edulife.onrender.com/api/student/generate-schedule"
 
 # You'll need to get a valid token by logging in first
 # For now, let's test if the endpoint exists
