@@ -35,7 +35,7 @@ origins = [
 ]
 
 # Add Render/Production origins from Environment Variable
-env_origins = os.getenv("ALLOWED_ORIGINS")
+env_origins = os.getenv("ONLINE")
 if env_origins:
     origins.extend(env_origins.split(","))
 
