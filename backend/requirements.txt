@@ -13,3 +13,4 @@ email-validator==2.2.0
 dotenv
 wikipedia
 duckduckgo_search
+psycopg2-binary
