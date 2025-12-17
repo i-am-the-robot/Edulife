@@ -31,11 +31,11 @@ class AgentCoordinator:
         self.memory = get_student_memory(student.id, session)
         
         # Initialize specialized agents
-        self.tutoring_agent = TutoringAgent(student, session)
-        self.assessment_agent = AssessmentAgent(student, session)
-        self.scheduling_agent = SchedulingAgent(student, session)
-        self.motivation_agent = MotivationAgent(student, session)
-        self.parent_connect_agent = ParentConnectAgent(student, session)
+        self.tutoring_agent = TutoringAgent(self.student, session)
+        self.assessment_agent = AssessmentAgent(self.student, session)
+        self.scheduling_agent = SchedulingAgent(self.student, session)
+        self.motivation_agent = MotivationAgent(self.student, session)
+        self.parent_connect_agent = ParentConnectAgent(self.student, session)
     
     async def handle_student_question(self, question: str, subject: str) -> Dict:
         """
