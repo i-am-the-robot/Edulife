@@ -35,7 +35,6 @@ class StudentAgentMemory:
                 mastered_topics=json.dumps([]),
                 current_focus_topics=json.dumps([]),
                 agent_goals=json.dumps([]),
-                agent_goals=json.dumps([]),
                 progress_milestones=json.dumps([]),
                 preferred_examples=json.dumps([]),
                 user_facts=json.dumps([])
@@ -168,7 +167,6 @@ class StudentAgentMemory:
         
         self.memory.progress_milestones = json.dumps(milestones)
         self.memory.updated_at = datetime.now(timezone.utc)
-        self.session.add(self.memory)
         self.session.add(self.memory)
         self.session.commit()
         
