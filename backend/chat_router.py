@@ -185,10 +185,63 @@ async def send_message(
 async def update_student_engagement(student_id: str, db_session: Session) -> float:
     """Update student's engagement score based on activity and RETURN it"""
     from sqlmodel import func
+    from datetime import timedelta
     
     student = db_session.get(Student, student_id)
     if not student:
         return 0.0
+    
+    # Calculate login frequency (sessions per week)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    
+    recent_sessions = db_session.exec(
+        select(func.count(ChatHistory.session_id.distinct())).where(
+            (ChatHistory.student_id == student_id) &
+            (ChatHistory.timestamp >= week_ago)
+        )
+    ).one()
+    
+    # Total sessions
+    total_sessions = db_session.exec(
+        select(func.count(ChatHistory.session_id.distinct())).where(
+            ChatHistory.student_id == student_id
+        )
+    ).one()
+    
+    # Total tests
+    total_tests = db_session.exec(
+        select(func.count(TestResult.id)).where(
+            TestResult.student_id == student_id
+        )
+    ).one()
+    
+    # Test success rate
+    correct_tests = db_session.exec(
+        select(func.count(TestResult.id)).where(
+            (TestResult.student_id == student_id) &
+            (TestResult.is_correct == True)
+        )
+    ).one()
+    
+    test_success_rate = (correct_tests / total_tests * 100) if total_tests > 0 else 0.0
+    
+    # Calculate engagement score
+    engagement_score = calculate_engagement_score(
+        login_frequency=recent_sessions,
+        total_sessions=total_sessions,
+        total_tests=total_tests,
+        test_success_rate=test_success_rate
+    )
+    
+    # Update student
+    student.engagement_score = engagement_score
+    student.login_frequency = recent_sessions
+    student.last_active = datetime.now(timezone.utc)
+    
+    db_session.add(student)
+    db_session.commit()
+    
+    return engagement_score
 
 # ============================================================================
 # TEST ENDPOINTS
@@ -272,69 +325,4 @@ async def get_test_question(
         "is_correct": test.is_correct if test.student_answer else None
     }
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
 
-async def update_student_engagement(student_id: str, db_session: Session):
-    """Update student's engagement score based on activity"""
-    from sqlmodel import func
-    
-    student = db_session.get(Student, student_id)
-    if not student:
-        return
-    
-    # Calculate login frequency (sessions per week)
-    from datetime import timedelta
-    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    
-    recent_sessions = db_session.exec(
-        select(func.count(ChatHistory.session_id.distinct())).where(
-            (ChatHistory.student_id == student_id) &
-            (ChatHistory.timestamp >= week_ago)
-        )
-    ).one()
-    
-    # Total sessions
-    total_sessions = db_session.exec(
-        select(func.count(ChatHistory.session_id.distinct())).where(
-            ChatHistory.student_id == student_id
-        )
-    ).one()
-    
-    # Total tests
-    total_tests = db_session.exec(
-        select(func.count(TestResult.id)).where(
-            TestResult.student_id == student_id
-        )
-    ).one()
-    
-    # Test success rate
-    correct_tests = db_session.exec(
-        select(func.count(TestResult.id)).where(
-            (TestResult.student_id == student_id) &
-            (TestResult.is_correct == True)
-        )
-    ).one()
-    
-    test_success_rate = (correct_tests / total_tests * 100) if total_tests > 0 else 0.0
-    
-    # Calculate engagement score
-    engagement_score = calculate_engagement_score(
-        login_frequency=recent_sessions,
-        total_sessions=total_sessions,
-        total_tests=total_tests,
-        test_success_rate=test_success_rate
-    )
-    
-    # Update student
-    student.engagement_score = engagement_score
-    # Update student
-    student.engagement_score = engagement_score
-    student.login_frequency = recent_sessions
-    student.last_active = datetime.now(timezone.utc)
-    
-    db_session.add(student)
-    db_session.commit()
-    
-    return engagement_score

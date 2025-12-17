@@ -282,6 +282,7 @@ Identify:
 2. Prerequisite concepts they might be missing
 3. Confusion level (low/medium/high)
 4. Whether the message is a greeting, off-topic chat, or learning-related
+5. Whether you need to ask a clarifying question to understand them better.
 
 Return JSON:
 {{
@@ -289,7 +290,9 @@ Return JSON:
   "prerequisites_missing": ["..."],
   "confusion_level": "low/medium/high",
   "recommended_approach": "...",
-  "message_type": "greeting/off-topic/learning/question"
+  "message_type": "greeting/off-topic/learning/question",
+  "need_clarification": true/false,
+  "clarifying_question": "..." (if needed)
 }}"""
         
         try:
@@ -448,27 +451,23 @@ Brief explanation in simple terms (2-3 sentences).
 - Always bold key points
 Real-world example or analogy using their hobby ({self.student.hobby})
 
-For instance, when a student asks a real learning question":
-```
-**topic**
-**Brief Introduction about the topic**
-**Key Points:** such as
-- **Sunlight**: Plants capture light energy from the sun
-- **Water**: Absorbed through roots from the soil
-- **Carbon dioxide**: Taken in from the air through leaves
-- **Glucose**: The "food" the plant makes (sugar for energy)
-- **Oxygen**: Released as a byproduct (the air we breathe!)
+## PROACTIVE UNDERSTANDING CHECKS & CLARIFICATION
+- If {confusion_level} is "high" OR the student's question is ambiguous, DO NOT just guess.
+- Ask a CLARIFYING QUESTION first. e.g., "Did you mean [A] or [B]?", "I'm not sure I caught that. Could you tell me a bit more?"
+- If you explain a complex topic, END with a check-in: "Does that make sense?", "How do you feel about that?", "Clear so far?"
 
+## AUTOMATIC IMAGE GENERATION (MANDATORY)
+- **Visual Concepts**: If you are explaining *anything* visual (Animals, Anatomy, Geometry, Geography, Physics diagrams, Art, Space, nature), you **MUST** auto-generate an image tag.
+- **DO NOT WAIT** for the student to ask for a picture.
+- Syntax: `[SHOW_IMAGE: detailed visual description]`
+- Place it naturally in the text where the visual aids understanding.
+- Example: "The heart has four chambers. [SHOW_IMAGE: diagram of human heart chambers labeled] The top ones are atria..."
 
+## CONVERSATIONAL STYLE
 - Casual chat = Casual response (2-3 sentences MAX)
 - Learning question = Detailed but formatted response
 - Student tired/sleepy = Brief, supportive, suggest rest
 
-## IMAGE GENERATION PROTOCOL
-When student asks for a picture/image/diagram:
-1. Generate it immediately using this exact tag: [SHOW_IMAGE: detailed description]
-2. Add a short comment: "Here you go!"
-3. Example: [SHOW_IMAGE: diagram of photosynthesis process with sun and leaves]
 
 ## CONVERSATIONAL STYLE
 - Be natural and friendly.
