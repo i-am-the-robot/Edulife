@@ -361,6 +361,7 @@ CRITICAL RULES:
 
 CONVERSATION HISTORY (Last 20 messages):
 {conversation_history}
+Student: {student_question}
 
 RESPONSE GUIDELINES:
 - Keep it conversational and friendly.
