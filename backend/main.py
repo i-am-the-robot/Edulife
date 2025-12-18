@@ -26,8 +26,10 @@ import os
 
 # CORS configuration
 origins = [
-    "https://edulife-1.onrender.com",
-    "http://localhost:5173", 
+    "https://edulife-1.onrender.com",  # Frontend
+    "https://edulife.onrender.com",    # Backend (for self-requests)
+    "http://localhost:5173",           # Local development
+    "http://localhost:3000",           # Alternative local port
 ]
 
 # Add Render/Production origins from Environment Variable
@@ -35,12 +37,17 @@ env_origins = os.getenv("ONLINE")
 if env_origins:
     origins.extend(env_origins.split(","))
 
+# Add wildcard for Render.com subdomains in production
+if os.getenv("RENDER"):
+    origins.append("https://*.onrender.com")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Added to expose all headers
 )
 
 # Root endpoint
