@@ -148,10 +148,49 @@ class TutoringAgent(BaseAgent):
         """Detect what the student actually wants"""
         msg_lower = message.lower().strip()
         
-
-        # Default to learning question
-        intent["type"] = "learning"
-        return intent
+        # Quiz request
+        if any(word in msg_lower for word in ["quiz", "test me", "exam", "practice questions"]):
+            return {"type": "quiz_request", "confidence": "high"}
+        
+        # Summary request
+        if any(phrase in msg_lower for phrase in ["what did we", "what have we", "summary", "recap"]):
+            return {"type": "summary_request", "confidence": "high"}
+        
+        # Greeting
+        greeting_words = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "hy"]
+        if msg_lower in greeting_words or (len(message.split()) <= 3 and any(g in msg_lower for g in greeting_words)):
+            return {"type": "greeting", "confidence": "high"}
+        
+        # Tired/Break request
+        if any(word in msg_lower for word in ["tired", "sleepy", "break", "rest", "stop", "bye", "goodbye"]):
+            return {"type": "tired", "confidence": "medium"}
+        
+        # Profanity
+        if any(word in msg_lower for word in ["fuck", "shit", "damn", "stupid ai"]):
+            return {"type": "profanity", "confidence": "high"}
+        
+        # Simple questions
+        if msg_lower in ["what", "how", "why", "when", "where", "who"]:
+            return {"type": "simple_question", "confidence": "medium"}
+        
+        # Unsure what to learn
+        if any(phrase in msg_lower for phrase in [
+            "what should i learn",
+            "what to learn",
+            "don't know what",
+            "not sure what",
+            "help me choose",
+            "what topic",
+            "suggest something"
+        ]):
+            return {"type": "unsure_what_to_learn", "confidence": "high"}
+        
+        # Visual request
+        if any(word in msg_lower for word in ["show me", "picture", "image", "diagram", "draw"]):
+            return {"type": "visual_request", "confidence": "medium"}
+        
+        # Default: learning question
+        return {"type": "learning", "confidence": "low"}
 
     async def handle_special_intent(self, intent: Dict, message: str) -> Optional[str]:
         """Handle special intents that don't need full explanation generation"""
