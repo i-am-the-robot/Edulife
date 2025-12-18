@@ -74,6 +74,7 @@ from .chat_router import router as chat_router
 from .assignment_study_router import router as assignment_study_router
 from .agent_router import router as agent_router
 from .notification_router import router as notification_router
+from .voice_quiz_router import router as voice_quiz_router
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -83,6 +84,7 @@ app.include_router(chat_router)
 app.include_router(assignment_study_router)
 app.include_router(agent_router)
 app.include_router(notification_router)
+app.include_router(voice_quiz_router)
 
 
 
