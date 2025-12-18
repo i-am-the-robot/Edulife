@@ -1,102 +1,175 @@
+"""
+Media Service - Multi-Source Image Integration
+Handles image search and processing from DuckDuckGo, Wikipedia, and external APIs
+Processes image tags in AI responses for both text and voice modes
+"""
+import os
 import re
-import urllib.parse
-import wikipedia
+import requests
+from typing import Optional, List, Dict
 from duckduckgo_search import DDGS
+
+def search_duckduckgo_images(query: str, max_results: int = 1) -> Optional[str]:
+    """
+    Search for images using DuckDuckGo
+    Returns the first image URL or None
+    """
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.images(
+                keywords=query,
+                max_results=max_results,
+                safesearch='on'  # Always use safe search for students
+            ))
+            
+            if results and len(results) > 0:
+                return results[0].get('image')
+    except Exception as e:
+        print(f"DuckDuckGo image search error: {e}")
+    
+    return None
+
+
+def search_wikipedia_images(query: str) -> Optional[str]:
+    """
+    Search for images using Wikipedia API
+    Returns the first image URL or None
+    """
+    try:
+        import wikipedia
+        
+        # Search for the page
+        search_results = wikipedia.search(query, results=1)
+        if not search_results:
+            return None
+        
+        # Get the page
+        page = wikipedia.page(search_results[0], auto_suggest=False)
+        
+        # Get images from the page
+        if page.images and len(page.images) > 0:
+            # Filter for common image formats
+            for img_url in page.images:
+                if any(ext in img_url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif']):
+                    return img_url
+    except Exception as e:
+        print(f"Wikipedia image search error: {e}")
+    
+    return None
+
+
+def search_image_multi_source(query: str) -> Optional[str]:
+    """
+    Search for images using multiple sources with fallback chain
+    Priority: DuckDuckGo → Wikipedia
+    Returns the first successful image URL or None
+    """
+    # Try DuckDuckGo first (fastest and most reliable)
+    image_url = search_duckduckgo_images(query)
+    if image_url:
+        print(f"✅ Found image via DuckDuckGo: {query}")
+        return image_url
+    
+    # Fallback to Wikipedia
+    image_url = search_wikipedia_images(query)
+    if image_url:
+        print(f"✅ Found image via Wikipedia: {query}")
+        return image_url
+    
+    print(f"⚠️ No image found for: {query}")
+    return None
+
 
 def process_image_tags(text: str) -> str:
     """
-    Process [SHOW_IMAGE: query] tags in text and replace with HTML image tags.
-    Strategy:
-    1. DuckDuckGo Search (High quality, real images)
-    2. Wikipedia (Educational content)
-    3. Pollinations.ai (AI generated fallback)
-    4. Google Search Link (Last resort)
+    Process [SHOW_IMAGE: query] tags in AI responses
+    Replaces tags with actual image HTML for text mode
     """
     if not text:
         return text
-        
-    if "[SHOW_IMAGE:" not in text:
-        return text
-
-    processed_text = text
     
-    while True:
-        match = re.search(r'\[SHOW_IMAGE:(.*?)\]', processed_text)
-        if not match:
-            break
-            
-        query = match.group(1).strip()
-        print(f"🖼️ Processing image request for: {query}")
-        replacement = None
+    # Find all image tags
+    pattern = r'\[SHOW_IMAGE:\s*([^\]]+)\]'
+    matches = re.findall(pattern, text)
+    
+    if not matches:
+        return text
+    
+    # Process each tag
+    for query in matches:
+        query = query.strip()
         
-        # 1. Try DuckDuckGo Search
-        try:
-            print(f"  Attempting DuckDuckGo for: {query}")
-            with DDGS() as ddgs:
-                results = list(ddgs.images(query, max_results=1))
-                
-            if results and results[0].get('image'):
-                img_url = results[0]['image']
-                print(f"  ✅ Found via DuckDuckGo")
-                replacement = f'<br/><img src="{img_url}" alt="{query}" style="max-width: 100%; border-radius: 12px; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" /><br/>'
-        except Exception as e:
-            print(f"  ⚠️ DuckDuckGo failed: {e}")
-
-        # 2. Try Wikipedia if no result yet
-        if not replacement:
-            try:
-                print(f"  Attempting Wikipedia for: {query}")
-                wiki_results = wikipedia.search(query, results=1)
-                if wiki_results:
-                    page = wikipedia.page(wiki_results[0], auto_suggest=False)
-                    found_wiki_image = None
-                    for img_url in page.images:
-                        if img_url.lower().endswith(('.jpg', '.jpeg', '.png')) and not any(x in img_url.lower() for x in ['icon', 'logo', 'symbol']):
-                            found_wiki_image = img_url
-                            break
-                    
-                    if found_wiki_image:
-                        print(f"  ✅ Found via Wikipedia: {found_wiki_image}")
-                        replacement = (
-                            f'<br/><div style="text-align: center;">'
-                            f'<img src="{found_wiki_image}" alt="{query}" style="max-width: 100%; border-radius: 12px; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" />'
-                            f'<p style="font-size: 10px; color: #666; margin-top: 4px;">Source: Wikipedia ({page.title})</p>'
-                            f'</div><br/>'
-                        )
-            except Exception as e:
-                print(f"  ⚠️ Wikipedia failed: {e}")
-
-        # 3. Try Pollinations.ai if no result yet
-        if not replacement:
-            try:
-                print(f"  Attempting Pollinations.ai for: {query}")
-                encoded_query = urllib.parse.quote(query)
-                pollinations_url = f"https://image.pollinations.ai/prompt/{encoded_query}"
-                # Pollinations generates on the fly, so we assume it works if we can construct the URL.
-                # It doesn't throw not found errors typically, it just makes an image.
-                print(f"  ✅ Using Pollinations.ai generation")
-                replacement = (
-                    f'<br/><div style="text-align: center;">'
-                    f'<img src="{pollinations_url}" alt="{query} (AI Generated)" style="max-width: 100%; border-radius: 12px; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" />'
-                    f'<p style="font-size: 10px; color: #666; margin-top: 4px;">Generated by AI</p>'
-                    f'</div><br/>'
-                )
-            except Exception as e:
-                print(f"  ⚠️ Pollinations failed: {e}")
-
-        # 4. Last Resort: Google Search Link
-        if not replacement:
-            print(f"  Returning fallback link for: {query}")
-            fallback_url = f"https://www.google.com/search?tbm=isch&q={urllib.parse.quote(query)}"
-            replacement = (
-                f'<div style="margin-top: 10px; padding: 10px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">'
-                f'ℹ️ Unable to load preview. '
-                f'<a href="{fallback_url}" target="_blank" style="color: #0284c7; text-decoration: underline; font-weight: bold;">'
-                f'Click here to view images of "{query}"'
-                f'</a>'
-                f'</div>'
-            )
-            
-        processed_text = processed_text.replace(match.group(0), replacement)
+        # Search for image
+        image_url = search_image_multi_source(query)
         
-    return processed_text
+        if image_url:
+            # Replace tag with HTML image
+            img_html = f'<img src="{image_url}" alt="{query}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" />'
+            text = text.replace(f'[SHOW_IMAGE: {query}]', img_html)
+        else:
+            # Remove tag if no image found
+            text = text.replace(f'[SHOW_IMAGE: {query}]', f'[Image: {query} - not available]')
+    
+    return text
+
+
+def strip_markdown_for_voice(text: str) -> str:
+    """
+    Strip markdown formatting and convert to plain text for voice output
+    Removes: **, *, ##, HTTP links, image tags
+    Converts image tags to descriptive text
+    """
+    if not text:
+        return text
+    
+    # Convert image tags to descriptive text
+    pattern = r'\[SHOW_IMAGE:\s*([^\]]+)\]'
+    text = re.sub(pattern, r'Here is an image of \1.', text)
+    
+    # Remove HTML image tags (in case they were already processed)
+    text = re.sub(r'<img[^>]*>', '', text)
+    
+    # Remove markdown bold
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    
+    # Remove markdown italic
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    
+    # Remove markdown headers
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove HTTP/HTTPS links but keep the text
+    text = re.sub(r'https?://[^\s]+', '', text)
+    
+    # Remove markdown code blocks
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    
+    # Remove bullet points
+    text = re.sub(r'^[-*•]\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove numbered lists
+    text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    # Clean up multiple spaces
+    text = re.sub(r'\s+', ' ', text)
+    
+    # Clean up multiple newlines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
+
+
+def prepare_voice_response(ai_response: str) -> str:
+    """
+    Prepare AI response for voice output
+    Strips markdown and converts to natural speech text
+    """
+    return strip_markdown_for_voice(ai_response)
+
+
+def prepare_text_response(ai_response: str) -> str:
+    """
+    Prepare AI response for text output
+    Processes image tags and keeps markdown formatting
+    """
+    return process_image_tags(ai_response)

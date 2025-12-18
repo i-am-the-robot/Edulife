@@ -37,7 +37,8 @@ class StudentAgentMemory:
                 agent_goals=json.dumps([]),
                 progress_milestones=json.dumps([]),
                 preferred_examples=json.dumps([]),
-                user_facts=json.dumps([])
+                user_facts=json.dumps([]),
+                session_facts=json.dumps({})
             )
             self.session.add(memory)
             self.session.commit()
@@ -189,10 +190,55 @@ class StudentAgentMemory:
         self.memory.updated_at = datetime.now(timezone.utc)
         self.session.add(self.memory)
         self.session.commit()
+    
+    def add_session_fact(self, session_id: str, category: str, fact: str):
+        """Add a temporary session-scoped fact"""
+        session_facts = json.loads(self.memory.session_facts or "{}")
         
-    def get_all_facts(self) -> List[Dict]:
-        """Get all stored user facts"""
-        return json.loads(self.memory.user_facts or "[]")
+        if session_id not in session_facts:
+            session_facts[session_id] = []
+        
+        # Check duplicates within this session
+        for f in session_facts[session_id]:
+            if f["fact"] == fact:
+                return
+        
+        session_facts[session_id].append({
+            "category": category,
+            "fact": fact,
+            "added_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        self.memory.session_facts = json.dumps(session_facts)
+        self.memory.updated_at = datetime.now(timezone.utc)
+        self.session.add(self.memory)
+        self.session.commit()
+    
+    def get_session_facts(self, session_id: str) -> List[Dict]:
+        """Get facts for a specific session"""
+        session_facts = json.loads(self.memory.session_facts or "{}")
+        return session_facts.get(session_id, [])
+    
+    def clear_session_facts(self, session_id: str):
+        """Clear facts for a specific session"""
+        session_facts = json.loads(self.memory.session_facts or "{}")
+        if session_id in session_facts:
+            del session_facts[session_id]
+            self.memory.session_facts = json.dumps(session_facts)
+            self.memory.updated_at = datetime.now(timezone.utc)
+            self.session.add(self.memory)
+            self.session.commit()
+    
+    def get_all_facts(self, session_id: Optional[str] = None) -> List[Dict]:
+        """Get all stored user facts, optionally including session-scoped facts"""
+        permanent_facts = json.loads(self.memory.user_facts or "[]")
+        
+        if session_id:
+            # Combine permanent facts with session facts
+            session_facts = self.get_session_facts(session_id)
+            return permanent_facts + session_facts
+        
+        return permanent_facts
     
     def get_effective_strategies(self) -> List[Dict]:
         """Get list of effective strategies"""

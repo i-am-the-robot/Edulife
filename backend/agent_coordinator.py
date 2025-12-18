@@ -37,7 +37,7 @@ class AgentCoordinator:
         self.motivation_agent = MotivationAgent(self.student, session)
         self.parent_connect_agent = ParentConnectAgent(self.student, session)
     
-    async def handle_student_question(self, question: str, subject: str) -> Dict:
+    async def handle_student_question(self, question: str, subject: str, session_id: Optional[str] = None) -> Dict:
         """
         Coordinate agents to handle a student question
         
@@ -176,7 +176,8 @@ class AgentCoordinator:
             subject, 
             question, 
             conversation_context,
-            sentiment_analysis=sentiment_res # New argument
+            sentiment_analysis=sentiment_res, # New argument
+            session_id=session_id  # Pass session_id for session-scoped memory
         )
         
         # 3. Auxiliary Tasks
@@ -359,7 +360,7 @@ class AgentCoordinator:
         
         return response
     
-    async def handle_student_question_stream(self, question: str, subject: str):
+    async def handle_student_question_stream(self, question: str, subject: str, session_id: Optional[str] = None):
         """
         Stream coordinator response to reduce latency.
         Yields chunks:
@@ -424,7 +425,7 @@ class AgentCoordinator:
         
             # 2. Main Tutor Response (Blocking but yielded first)
             # We await this first so we can send audio ASAP
-            education_text = await self.tutoring_agent.generate_explanation({}, subject, question, conversation_context)
+            education_text = await self.tutoring_agent.generate_explanation({}, subject, question, conversation_context, session_id=session_id)
         
             # YIELD 1: The spoken response
             yield json.dumps({

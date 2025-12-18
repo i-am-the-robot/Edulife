@@ -1,6 +1,5 @@
 
 import os
-import sqlalchemy
 from sqlalchemy import create_engine, text
 
 # Get Database URL from environment
@@ -18,25 +17,31 @@ def migrate():
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
 
+    # Create engine without automatic transaction if possible, or just handle manually
     engine = create_engine(db_url)
 
     try:
         with engine.connect() as conn:
-            # Commit any pending transaction
-            conn.commit()
+            conn.commit() # Ensure we are not in a failed state
             
             # Check if column exists
             print("Checking for 'user_facts' column in 'agentmemory'...")
+            column_exists = False
             try:
                 # Try to select the column to see if it exists
                 conn.execute(text("SELECT user_facts FROM agentmemory LIMIT 1"))
                 print("  Column 'user_facts' already exists. No action needed.")
+                column_exists = True
             except Exception:
-                # Column doesn't exist, so add it
-                print("  Column not found. Adding 'user_facts'...")
-                # Start new transaction for ALTER
-                with conn.begin():
-                    conn.execute(text("ALTER TABLE agentmemory ADD COLUMN user_facts TEXT"))
+                # IMPORTANT: If SELECT failed, the transaction is poisoned. We MUST rollback.
+                print("  Column Check resulted in exception (expected if missing). Rolling back transaction...")
+                conn.rollback()
+                
+            if not column_exists:
+                print("  Adding 'user_facts'...")
+                # New transaction attempt
+                conn.execute(text("ALTER TABLE agentmemory ADD COLUMN user_facts TEXT"))
+                conn.commit()
                 print("  SUCCESS: Column 'user_facts' added.")
 
     except Exception as e:

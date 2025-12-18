@@ -148,60 +148,6 @@ class TutoringAgent(BaseAgent):
         """Detect what the student actually wants"""
         msg_lower = message.lower().strip()
         
-        intent = {
-            "type": "unknown",
-            "requires_quiz": False,
-            "wants_summary": False,
-            "is_greeting": False,
-            "is_tired": False,
-            "is_profanity": False,
-            "is_simple_question": False
-        }
-        
-        # Check for quiz request
-        if any(word in msg_lower for word in ["quiz", "test", "question me", "ask me"]):
-            intent["type"] = "quiz_request"
-            intent["requires_quiz"] = True
-            return intent
-        
-        # Check for conversation summary request
-        if any(phrase in msg_lower for phrase in ["where did we", "what were we", "continue from", "left off", "what did we discuss"]):
-            intent["type"] = "summary_request"
-            intent["wants_summary"] = True
-            return intent
-        
-        # Check for greeting (but only if it's JUST a greeting)
-        greeting_only = msg_lower in ["hi", "hello", "hey", "hy", "good morning", "good afternoon", "good evening", "how are you", "how are you doing"]
-        if greeting_only:
-            intent["type"] = "greeting"
-            intent["is_greeting"] = True
-            self.greeting_count += 1
-            return intent
-        
-        # Check for tiredness
-        if any(word in msg_lower for word in ["tired", "sleep", "rest", "call it a day", "exhausted"]):
-            intent["type"] = "tired"
-            intent["is_tired"] = True
-            return intent
-        
-        # Check for profanity
-        profanity_words = ["fuck", "shit", "damn"]
-        if any(word in msg_lower for word in profanity_words):
-            intent["type"] = "profanity"
-            intent["is_profanity"] = True
-            return intent
-        
-        # Check for simple questions (name, identity, etc)
-        if any(phrase in msg_lower for phrase in ["what is your name", "who are you", "are you with me", "you there"]):
-            intent["type"] = "simple_question"
-            intent["is_simple_question"] = True
-            return intent
-        
-        # Check for visual requests
-        visual_keywords = ["show me", "picture", "image", "graph", "diagram", "draw", "see", "look"]
-        if any(word in msg_lower for word in visual_keywords):
-            intent["type"] = "visual_request"
-            return intent
 
         # Default to learning question
         intent["type"] = "learning"
@@ -229,6 +175,27 @@ class TutoringAgent(BaseAgent):
         if intent["type"] == "profanity":
             return "Hey, let's keep it respectful. What would you like to learn about?"
         
+        if intent["type"] == "unsure_what_to_learn":
+            # Check timetable first
+            from .specialized_agents import SchedulingAgent
+            scheduling_agent = SchedulingAgent(self.student, self.session)
+            timetable_suggestion = scheduling_agent.suggest_topic_from_timetable()
+            
+            if timetable_suggestion:
+                return timetable_suggestion
+            
+            # Fallback: suggest based on weak subjects
+            weak_subjects = []
+            if hasattr(self.student, 'weak_subjects') and self.student.weak_subjects:
+                weak_subjects = self.student.weak_subjects.split(',') if isinstance(self.student.weak_subjects, str) else self.student.weak_subjects
+            
+            if weak_subjects:
+                subject = weak_subjects[0].strip()
+                return f"How about we work on **{subject}**? I noticed you could use some practice there. Sound good?"
+            
+            # Final fallback: general suggestion
+            return "What subject are you studying in school right now? We can start with that!"
+        
         if intent["type"] == "simple_question":
             msg_lower = message.lower()
             if "name" in msg_lower or "who are you" in msg_lower:
@@ -241,6 +208,7 @@ class TutoringAgent(BaseAgent):
             return None
         
         return None
+
 
     async def generate_quiz_question(self, topic: str = None) -> str:
         """Generate an actual quiz question"""
@@ -353,16 +321,17 @@ Return JSON:
         subject: str,
         student_question: str,
         conversation_history: str = "",
-        sentiment_analysis: Dict = None
+        sentiment_analysis: Dict = None,
+        session_id: Optional[str] = None
     ) -> str:
         """
-        Generate a pedagogical explanation with natural, warm, human-like conversation
+        Generate a pedagogical explanation with Nigerian-focused, action-oriented teaching
         """
         if not aclient:
             return "I'm having trouble connecting right now. Can you try again in a moment?"
         
-        # Get stored facts
-        facts = self.memory.get_all_facts()
+        # Get stored facts (including session-scoped if session_id provided)
+        facts = self.memory.get_all_facts(session_id=session_id)
         facts_context = ""
         if facts:
             facts_list = [f"- {f['category'].title()}: {f['fact']}" for f in facts]
@@ -385,102 +354,156 @@ Return JSON:
         # Check for break/return context
         context_flags = self._analyze_conversation_context(conversation_history)
         
-        # Get disability info (if any)
-        support_info = ""
-        if hasattr(self.student, 'support_type') and self.student.support_type:
-            support_info = f"- Support Needs: {self.student.support_type} (ADAPT SILENTLY - NEVER MENTION THIS TO STUDENT)"
+        # Get support type for silent adaptation (NEVER mention to student)
+        support_type = self.student.support_type if hasattr(self.student, 'support_type') and self.student.support_type else None
             
         # Sentiment Context
         sentiment_context = ""
         if sentiment_analysis:
             emotion = sentiment_analysis.get("emotion", "neutral")
             if sentiment_analysis.get("is_distress"):
-                sentiment_context = f"DETECTED DISTRESS: Student is feeling {emotion}. Be extremely supportive, patient, and validating. Ignoring this is a failure."
+                sentiment_context = f"DETECTED DISTRESS: Student is feeling {emotion}. Be extremely supportive, patient, and validating."
             elif emotion in ["frustrated", "confused", "anxious"]:
                 sentiment_context = f"DETECTED NEGATIVE EMOTION: Student seems {emotion}. Start with validation (e.g., 'I know this is tricky...'). Slow down."
             elif emotion in ["happy", "excited"]:
                 sentiment_context = f"DETECTED POSITIVE EMOTION: Student seems {emotion}. Match their high energy!"
 
-        prompt = f"""You are an expert AI tutor named 'EduLife' with the persona of a growth-oriented, caring, and warm human teacher (similar to Claude). 
-Your goal is to help the student learn through natural conversation, not just lecturing.
+        # === COMPLETE NIGERIAN-FOCUSED TEACHING SYSTEM PROMPT ===
+        prompt = f"""You are an AI tutor for Nigerian students. Your job is to TEACH, not to chat endlessly.
 
 STUDENT PROFILE:
 - Name: {self.student.full_name}
 - Age: {self.student.age}
+- Class: {self.student.student_class}
+- Hobby/Interest: {self.student.hobby}
 - Personality: {self.student.personality}
-- Hobby: {self.student.hobby}
-- Support Needs: {self.student.support_type if hasattr(self.student, 'support_type') and self.student.support_type else 'None'}
-            
-EMOTIONAL CONTEXT:
-{sentiment_context}
 
 {facts_context}
 
-CRITICAL RULES:
-1. NEVER mention the student's disability, support needs, or age directly. Adapt your teaching style silently.
-2. If the student has specific needs (e.g., ADHD), structure your response to help them (e.g., shorter paragraphs, engaging hook) without pointing it out.
-3. Be encouraging and growth-oriented. Praise effort, not just intelligence.
-4. Use the provided CONVERSATION HISTORY to maintain context. Refer back to what was just said.
-5. If the student asks for a quiz ("quiz me"), acknowledge it enthusiastically but keep your text response brief (e.g., "Sure! Let's see what you've learned.") as the system will launch a quiz modal.
-6. Base your questions and examples on the conversation within this session.
+{sentiment_context}
+
+CRITICAL RULES - YOUR CORE MISSION:
+1. When a student wants to learn something → START TEACHING IMMEDIATELY
+2. Do NOT repeat greetings multiple times
+3. Do NOT ask endless questions before teaching
+4. Be conversational but GET TO THE POINT
+5. Use simple Nigerian English (not overly formal)
+6. Show images and diagrams to help understanding
+7. Make learning fun and connected to Nigerian life
+8. NEVER mention the student's disability, support needs, or age directly - adapt silently
+
+HOW TO RESPOND:
+
+❌ WRONG:
+Student: "I want to learn mathematics"
+You: "Hello! It's great to see you again! What specifically would you like to explore in math? Are you thinking about numbers, shapes, or something else?"
+
+✅ CORRECT:
+Student: "I want to learn mathematics"
+You: "Great! Let's start with mathematics. What topic are you working on in class right now? For example: addition, fractions, algebra, geometry?"
+
+[Student responds with topic]
+
+You: "Perfect! Let me teach you [topic] in a way that makes sense.
+
+[Then immediately start teaching with clear explanation and example]"
+
+RESPONSE STRUCTURE:
+1. Brief acknowledgment (1 sentence max)
+2. Quick clarifying question IF needed (1 question only)
+3. START TEACHING immediately with:
+   - Simple explanation
+   - Nigerian example
+   - Visual aid (auto-generate with [SHOW_IMAGE: description])
+   - Practice question
+
+TEACHING PRINCIPLES:
+
+## 1. COMMUNICATION STYLE
+- Be helpful, warm, and engaging
+- You can use natural conversation starters, but don't waste time before getting to the point
+- Answer questions clearly and directly
+- Keep sentences short (12-15 words maximum)
+- Short paragraphs (2-3 lines each)
+
+## 2. CULTURAL RELEVANCE - NIGERIAN CONTEXT
+- Use Nigerian currency: Naira (₦)
+- Reference familiar places: Lagos, Abuja, markets, local schools
+- Use Nigerian foods: jollof rice, puff-puff, meat pie, plantain, suya
+- Mention Nigerian life: danfo buses, keke NAPEP, harmattan season, rainy season
+- Use Nigerian expressions naturally: "Well done!", "You're doing great!", "E go be!", "You fit do am!"
+- Make learning relatable to {self.student.full_name}'s environment
+
+## 3. HOBBY INTEGRATION (CRITICAL)
+- Use {self.student.hobby} for analogies and metaphors in ~50% of explanations
+- Keep it natural: "Think of this like [hobby concept]..."
+- Don't force it—use when it genuinely helps understanding
+- Example: If hobby is football and teaching fractions: "If a team has 11 players and 5 are defenders, what fraction are defenders? 5/11!"
+
+## 4. POSITIVE REINFORCEMENT
+- Encourage the student warmly
+- Use constructive feedback: "Good thinking, but...", "You're close! Let me clarify...", "Let's look at this differently..."
+- Celebrate small wins: "Correct!", "Exactly right!", "You got it!", "Well done!"
+- Never say "Wrong!" harshly
+
+## 5. AUTOMATIC VISUAL AIDS (MANDATORY)
+IF explaining ANYTHING visual (animals, anatomy, geometry, geography, physics diagrams, art, space, nature):
+→ You MUST auto-generate an image tag: [SHOW_IMAGE: specific descriptive query]
+
+DO NOT WAIT for the student to ask for a picture.
+
+Examples:
+- Teaching about lions: "Lions are big cats. [SHOW_IMAGE: male lion with mane in African savannah] They live in groups called prides..."
+- Teaching photosynthesis: "Plants make food using sunlight. [SHOW_IMAGE: diagram of photosynthesis process with labeled parts] The green leaves..."
+- Teaching geometry: "A triangle has three sides. [SHOW_IMAGE: three types of triangles equilateral isosceles scalene labeled] Each type is different..."
+
+Place the tag naturally where the visual aids understanding.
+
+## 6. SKILLS & VOCATIONAL TEACHING
+If student asks about skills or vocational topics (coding, carpentry, tailoring, farming, business, etc.):
+- Teach it just like academic subjects
+- Use practical, hands-on examples
+- Connect to Nigerian job market and opportunities
+- Show real-world applications
+
+## 7. ACCESSIBILITY ADAPTATIONS (SILENT - NEVER MENTION)
+{self._get_silent_support_adaptations(support_type)}
+
+## 8. SMART INPUT INTERPRETATION
+{self.student.full_name} may have spelling errors or speak with an accent.
+
+RULE 1: PRIORITIZE INTENT
+If you're 80%+ confident of what they mean → Just answer
+Examples:
+- "Lio" → Lion (answer about lions)
+- "What is foto synthesis" → Photosynthesis (explain it)
+- "Sell division" → Cell division (teach it)
+
+RULE 2: ASK ONLY WHEN TRULY AMBIGUOUS
+Only ask for clarification if the word could mean two completely different things AND context doesn't help.
+
+Example of GOOD clarification:
+"I'm not sure if you meant 'cell' (biology) or 'sell' (business). Which one?"
+
+RULE 3: BE NATURAL
+Handle it like a human teacher—with warmth and understanding, not like an error message.
+
+## 9. SPECIAL COMMANDS
+QUIZ REQUEST:
+If student asks for a quiz/test, respond ONLY with:
+"Starting quiz functionality... [START_QUIZ]"
 
 CONVERSATION HISTORY (Last 20 messages):
 {conversation_history}
-Student: {student_question}
 
-RESPONSE GUIDELINES:
-- Keep it conversational and friendly.
-- Use analogies related to their hobby ({self.student.hobby}) if helpful.
-- If confusion is high ({confusion_level}), break it down into smaller steps.
-- If confusion is low, challenge them slightly.
-- Match the student's energy: short question = short answer.
+CURRENT QUESTION: {student_question}
+SUBJECT: {subject}
+CONFUSION LEVEL: {confusion_level}
 
+CONTEXT FLAGS: {context_flags}
 
-**3. FORMATTING FOR LEARNING CONTENT**
-
-When explaining concepts, use this structure:
-
-**[Concept Name]**
-
-Brief explanation in simple terms (2-3 sentences).
-
-**Key Points:**
-- **Important term 1**: Brief explanation
-- **Important term 2**: Brief explanation  
-- **Important term 3**: Brief explanation
-- Always bold key points
-Real-world example or analogy using their hobby ({self.student.hobby})
-
-## PROACTIVE UNDERSTANDING CHECKS & CLARIFICATION
-- If {confusion_level} is "high" OR the student's question is ambiguous, DO NOT just guess.
-- Ask a CLARIFYING QUESTION first. e.g., "Did you mean [A] or [B]?", "I'm not sure I caught that. Could you tell me a bit more?"
-- If you explain a complex topic, END with a check-in: "Does that make sense?", "How do you feel about that?", "Clear so far?"
-
-## AUTOMATIC IMAGE GENERATION (MANDATORY)
-- **Visual Concepts**: If you are explaining *anything* visual (Animals, Anatomy, Geometry, Geography, Physics diagrams, Art, Space, nature), you **MUST** auto-generate an image tag.
-- **DO NOT WAIT** for the student to ask for a picture.
-- Syntax: `[SHOW_IMAGE: detailed visual description]`
-- Place it naturally in the text where the visual aids understanding.
-- Example: "The heart has four chambers. [SHOW_IMAGE: diagram of human heart chambers labeled] The top ones are atria..."
-
-## CONVERSATIONAL STYLE
-- Casual chat = Casual response (2-3 sentences MAX)
-- Learning question = Detailed but formatted response
-- Student tired/sleepy = Brief, supportive, suggest rest
-
-
-## CONVERSATIONAL STYLE
-- Be natural and friendly.
-- If the student says "hy" or greets you, greet them back warmly!
-- Don't be robotic. Flow with the conversation.
-
-
-## CONTEXT FLAGS
-{context_flags}
-
-Generate a warm, helpful response now:
+Generate a warm, helpful, TEACHING-FOCUSED response now. Remember: TEACH IMMEDIATELY, don't chat endlessly!
 """
-
 
         
         try:
@@ -495,8 +518,8 @@ Generate a warm, helpful response now:
             
             # Process images if any
             try:
-                from .media_service import process_image_tags
-                explanation = process_image_tags(explanation)
+                from .media_service import prepare_text_response
+                explanation = prepare_text_response(explanation)
             except Exception as img_error:
                 print(f"Image processing error: {img_error}")
             
@@ -516,6 +539,54 @@ Generate a warm, helpful response now:
         except Exception as e:
             print(f"Error generating explanation: {e}")
             return f"I'd love to explain {subject}, but I'm having technical difficulties right now. Can you try asking again?"
+    
+    def _get_silent_support_adaptations(self, support_type) -> str:
+        """Generate silent adaptation instructions based on support type"""
+        if not support_type or support_type == "None":
+            return """STANDARD TEACHING MODE:
+- Use Socratic questioning to guide discovery
+- Employ rich analogies and diverse examples
+- Challenge thinking with "What if...?" scenarios
+- Vary sentence structure for engagement"""
+        
+        from .models import SupportType
+        
+        if support_type == SupportType.AUTISM:
+            return """AUTISM SUPPORT (ADAPT SILENTLY):
+- Be completely literal—no idioms, sarcasm, or abstract metaphors
+- If using hobby analogies, keep them concrete
+- Number all steps: 1., 2., 3.
+- Break complex ideas into explicit sequences
+- Be consistent and predictable in format
+- State one main idea per paragraph
+- Use "First..., Then..., Finally..." patterns
+- Avoid ambiguity—be precise"""
+        
+        elif support_type == SupportType.DYSLEXIA:
+            return """DYSLEXIA SUPPORT (ADAPT SILENTLY):
+- **Bold all key terms** for visual tracking
+- Use bullet points (•) extensively
+- Keep sentences under 15 words
+- Maximum 2 sentences per paragraph
+- Break information into small visual chunks
+- Use line breaks generously
+- Avoid text walls—think "bite-sized" information
+- Simple, direct sentences
+- One idea per sentence"""
+        
+        elif support_type == SupportType.DOWN_SYNDROME:
+            return """DOWN SYNDROME SUPPORT (ADAPT SILENTLY):
+- Use basic, everyday vocabulary (avoid technical jargon unless explaining it)
+- One idea per sentence. One sentence per line.
+- Repeat key concepts gently with slight variation
+- Be highly positive and encouraging
+- Use phrases like "You're doing great!", "I'm proud of you!"
+- Celebrate small wins
+- Slow down—don't rush through concepts
+- Check understanding with simple questions
+- Build on what they already know"""
+        
+        return ""
     
     def should_provide_example(self, topic: str) -> bool:
         """Decide if an example would help"""
@@ -841,6 +912,55 @@ class SchedulingAgent(BaseAgent):
             return "evening"  # 5-7 PM
         
         return "evening"  # More flexible
+    
+    def suggest_topic_from_timetable(self) -> Optional[str]:
+        """
+        Suggest what topic to learn based on student's current timetable
+        Returns a suggestion message or None if no timetable entry found
+        """
+        from .models import Timetable
+        from sqlmodel import select
+        from datetime import datetime
+        
+        # Get current day and time
+        now = datetime.now()
+        current_day = now.strftime("%A")  # Monday, Tuesday, etc.
+        current_time = now.strftime("%H:%M")  # 14:30
+        
+        # Find timetable entry for current day and time
+        timetable_entries = self.session.exec(
+            select(Timetable).where(
+                (Timetable.student_id == self.student.id) &
+                (Timetable.day_of_week == current_day)
+            )
+        ).all()
+        
+        if not timetable_entries:
+            return None
+        
+        # Find entry that matches current time
+        for entry in timetable_entries:
+            start_time = entry.start_time  # Format: "14:00"
+            end_time = entry.end_time      # Format: "15:00"
+            
+            if start_time <= current_time <= end_time:
+                # Found matching entry
+                subject = entry.subject or "General"
+                topic = entry.focus_topic or ""
+                
+                if topic:
+                    return f"According to your schedule, you should be learning **{subject}** right now, specifically: **{topic}**. Want to start?"
+                else:
+                    return f"According to your schedule, you should be learning **{subject}** right now. What topic would you like to cover?"
+        
+        # No exact match, find next upcoming entry
+        upcoming_entries = [e for e in timetable_entries if e.start_time > current_time]
+        if upcoming_entries:
+            next_entry = min(upcoming_entries, key=lambda e: e.start_time)
+            subject = next_entry.subject or "General"
+            return f"Your next scheduled topic is **{subject}** at {next_entry.start_time}. Want to get a head start?"
+        
+        return None
 
     def create_full_schedule(self) -> Dict:
         """
@@ -1041,7 +1161,7 @@ Context: {context}
 INTERVENTION RULES:
 1. Keep it VERY short (1-2 sentences max, 15-20 words)
 2. Be warm and genuine, not fake-cheerful
-3. Match their personality ({self.student.personality.value})
+3. Match their personality ({self.student.full_name} ({self.student.age} years old, {self.student.personality.value})
 4. DO NOT interrupt the learning flow unnecessarily
 5. Only suggest breaks if they've mentioned tiredness multiple times
 6. Use Nigerian expressions naturally if appropriate ("E go be!", "You fit do am!")
@@ -1079,6 +1199,104 @@ Generate ONLY the intervention message. No preamble."""
             print(f"Error generating intervention: {e}")
             
         return None
+    
+    def generate_targeted_questions(
+        self,
+        subject: str,
+        difficulty: str = "medium",
+        num_questions: int = 5
+    ) -> List[Dict]:
+        """
+        Generate targeted assessment questions
+        """
+        if not aclient:
+            return []
+        
+        # Get student context
+        hobby = self.student.hobby if hasattr(self.student, 'hobby') else "general interests"
+        student_class = self.student.student_class if hasattr(self.student, 'student_class') else "General"
+        
+        prompt = f"""Generate {num_questions} multiple-choice questions for a Nigerian student.
+
+STUDENT CONTEXT:
+- Class: {student_class}
+- Subject: {subject}
+- Difficulty: {difficulty}
+- Hobby: {hobby}
+
+CRITICAL RULES:
+1. NO TRUE/FALSE QUESTIONS - Only multiple choice with 4 options (A, B, C, D)
+2. Use Nigerian context in questions where relevant:
+   - Nigerian currency (Naira - ₦)
+   - Nigerian locations (Lagos, Abuja, Kano, Port Harcourt)
+   - Nigerian foods (jollof rice, puff-puff, suya, plantain)
+   - Nigerian daily life (danfo buses, markets, schools)
+3. Connect to student's hobby ({hobby}) when possible
+4. Make questions practical and relatable
+5. Ensure ONE correct answer per question
+
+DIFFICULTY LEVELS:
+- easy: Basic recall, simple concepts
+- medium: Application, understanding
+- hard: Analysis, complex problem-solving
+
+Return ONLY valid JSON array format:
+[
+  {{
+    "question": "Question text here",
+    "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+    "correct_answer": "A",
+    "explanation": "Why this is correct"
+  }}
+]
+
+Generate {num_questions} questions now:"""
+        
+        try:
+            response = aclient.chat.completions.create(
+                model=os.getenv("GROQ_MODEL"),
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=1500
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            # Parse JSON
+            import json
+            import re
+            
+            # Extract JSON array
+            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+            if json_match:
+                questions = json.loads(json_match.group())
+                
+                # Validate and filter out any True/False questions
+                valid_questions = []
+                for q in questions:
+                    if isinstance(q.get('options'), list) and len(q['options']) >= 4:
+                        # Ensure it's not a True/False question
+                        options_text = ' '.join(q['options']).lower()
+                        if not ('true' in options_text and 'false' in options_text and len(q['options']) == 2):
+                            valid_questions.append(q)
+                
+                # Log the assessment
+                self.log_action(
+                    "questions_generated",
+                    {
+                        "subject": subject,
+                        "difficulty": difficulty,
+                        "count": len(valid_questions)
+                    },
+                    f"Generated {len(valid_questions)} {difficulty} questions for {subject}"
+                )
+                
+                return valid_questions[:num_questions]
+            
+            return []
+        except Exception as e:
+            print(f"Error generating questions: {e}")
+            return []
     
     def reset_session_counters(self):
         """Call this at the start of each new session"""
