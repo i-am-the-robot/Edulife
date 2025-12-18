@@ -8,7 +8,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from .database import get_db_session
-from .auth_router import get_current_student
+from .student_router import get_current_student
 from .models import Student
 from .quiz_session import quiz_session_manager, QuizSession
 from .voice_answer_parser import parse_voice_answer, parse_voice_command, is_answer_input
